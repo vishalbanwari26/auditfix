@@ -84,15 +84,39 @@ def _is_transient(resp: httpx.Response) -> bool:
     return False
 
 
+MAX_WAIT_S = 60  # never sleep longer than this, whatever retry-after says
+
+
+def _wait_seconds(resp: httpx.Response | None, attempt: int) -> float:
+    try:
+        wait = float(resp.headers.get("retry-after", 2**attempt)) if resp else 2**attempt
+    except ValueError:
+        wait = 2**attempt
+    return min(wait, MAX_WAIT_S)
+
+
+def _too_long_to_wait(resp: httpx.Response) -> bool:
+    """A retry-after beyond the cap means a daily limit: retrying in a minute cannot help."""
+    try:
+        return float(resp.headers.get("retry-after", 0)) > MAX_WAIT_S
+    except ValueError:
+        return False
+
+
 async def post_chat(payload: dict, api_key: str, max_attempts: int = 4) -> dict:
-    """POST to Groq, retrying rate limits and 5xx with backoff. Shared by agent and judge."""
+    """POST to Groq, retrying rate limits, 5xx and network errors with backoff. Shared by agent and judge."""
     headers = {"Authorization": f"Bearer {api_key}"}
     async with httpx.AsyncClient(timeout=60) as http:
         for attempt in range(max_attempts):
-            resp = await http.post(URL, json=payload, headers=headers)
-            if _is_transient(resp) and attempt < max_attempts - 1:
-                wait = float(resp.headers.get("retry-after", 2**attempt))
-                await asyncio.sleep(wait)
+            try:
+                resp = await http.post(URL, json=payload, headers=headers)
+            except httpx.TransportError:  # timeouts, refused or dropped connections
+                if attempt == max_attempts - 1:
+                    raise
+                await asyncio.sleep(_wait_seconds(None, attempt))
+                continue
+            if _is_transient(resp) and attempt < max_attempts - 1 and not _too_long_to_wait(resp):
+                await asyncio.sleep(_wait_seconds(resp, attempt))
                 continue
             if resp.is_error:  # keep the provider's explanation, not just the status line
                 raise httpx.HTTPStatusError(

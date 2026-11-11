@@ -160,3 +160,37 @@ async def test_a_persistent_transient_failure_still_gives_up(http):
     with pytest.raises(httpx.HTTPStatusError):
         await GroqClient(api_key="k", max_attempts=3).complete([], [])
     assert len(http["requests"]) == 3
+
+
+@pytest.mark.anyio
+async def test_a_network_timeout_is_retried(http):
+    http["responses"] = [httpx.ConnectTimeout("slow"), httpx.Response(200, json=ok_body("ok"))]
+    reply = await GroqClient(api_key="k").complete([], [])
+    assert reply.text == "ok" and len(http["requests"]) == 2 and http["sleeps"] == [1.0]
+
+
+@pytest.mark.anyio
+async def test_a_network_error_is_raised_after_max_attempts(http):
+    http["responses"] = [httpx.ConnectError("down")] * 3
+    with pytest.raises(httpx.ConnectError):
+        await GroqClient(api_key="k", max_attempts=3).complete([], [])
+    assert len(http["requests"]) == 3
+
+
+@pytest.mark.anyio
+async def test_a_huge_retry_after_is_capped(http):
+    http["responses"] = [
+        httpx.Response(429, headers={"retry-after": "soon"}),
+        httpx.Response(429, headers={"retry-after": "60"}),
+        httpx.Response(200, json=ok_body("ok")),
+    ]
+    await GroqClient(api_key="k").complete([], [])
+    assert http["sleeps"] == [1.0, 60.0]  # unreadable falls back to backoff; the cap is the limit
+
+
+@pytest.mark.anyio
+async def test_a_daily_limit_fails_fast_without_retrying(http):
+    http["responses"] = [httpx.Response(429, headers={"retry-after": "599"}, text="tokens per day")]
+    with pytest.raises(httpx.HTTPStatusError, match="tokens per day"):
+        await GroqClient(api_key="k").complete([], [])
+    assert len(http["requests"]) == 1 and http["sleeps"] == []

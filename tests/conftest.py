@@ -13,7 +13,10 @@ def http(monkeypatch):
 
     def handler(request: httpx.Request) -> httpx.Response:
         state["requests"].append(request)
-        return state["responses"].pop(0)
+        item = state["responses"].pop(0)
+        if isinstance(item, Exception):  # simulate a network failure
+            raise item
+        return item
 
     def factory(**kw):
         return REAL_ASYNC_CLIENT(transport=httpx.MockTransport(handler), **kw)
