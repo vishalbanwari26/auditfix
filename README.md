@@ -98,16 +98,22 @@ Two demo databases, on purpose:
 - **One verified run.** On the clean demo DB, one live run reached `done` with a verified foreign key rebuild for POL-2.1. That is one run, not a success rate. On the default DB the foreign key was refused, as intended.
 - **The engineer over-declines.** It declined findings like POL-3.1 and POL-2.2 as not fixable in SQL, and nothing checks those declines.
 - **The sandbox counts rows, not contents.** A migration that drops a plaintext column passes the gate even though it destroys that data. A column-level check is not built.
-- **The judge is imperfect and varies.** It caught a stretched citation (POL-2.2 used for "no primary key") but accepted POL-3.2 in one run and rejected it in others. There is no labelled eval set yet, so there is no accuracy number.
+- **The judge is imperfect and varies.** It caught a stretched citation (POL-2.2 used for "no primary key") but accepted POL-3.2 in one run and rejected it in others. There is no accuracy number for it yet (see Evals below).
 - **Prompt injection is reduced, not solved.** Text from the schema, report and findings is stripped of the tags the prompts use as delimiters. A determined payload in a column name could still try.
 - **Single process.** See the Celery and Postgres notes above.
 - **Groq free tier.** Rate limits (429) and intermittent `output_parse_failed` 400s happen. Both are retried with backoff.
+
+## Evals
+
+- **Unit tests:** 189, no network. They check the code with scripted clients, not model quality.
+- **Judge accuracy, public benchmark:** `python -m evals.aggrefact --n 100` runs the 120b judge on a seeded sample of [LLM-AggreFact](https://huggingface.co/datasets/lytang/LLM-AggreFact) (gated, loaded at run time, not stored here) and reports accuracy, false-accept and false-reject rates. The harness is built and tested. **No complete run exists yet:** Groq's free tier allows 200k tokens a day for this model and the benchmark's documents are large, so the run is limited to documents under 3,000 characters and resumes across days. Results will be biased toward short documents. This tests the model as a fact-checker with a generic prompt, not the policy-specific judge prompt.
+- **Not built:** a hand-labelled set on this project's own policy, and repeated engineer runs to measure the verified rate.
 
 ## Next
 
 - A judge check on the engineer's declines.
 - A column-content check in the sandbox.
-- A labelled eval set to measure judge accuracy.
+- A hand-labelled eval set on this policy, and a complete AggreFact run.
 - Record `finish_reason` in the trace.
 
 ## Layout
