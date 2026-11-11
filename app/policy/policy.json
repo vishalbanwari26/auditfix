@@ -1,0 +1,26 @@
+{
+  "POL-1.1": {
+    "title": "Credential storage",
+    "text": "Passwords must be stored only as salted hashes (bcrypt or argon2). Plaintext credential columns are prohibited."
+  },
+  "POL-1.2": {
+    "title": "Sensitive identifiers",
+    "text": "National ID numbers and similar identifiers must be encrypted at rest."
+  },
+  "POL-2.1": {
+    "title": "Referential integrity",
+    "text": "Audit and log tables must reference their subject (for example a user) through an enforced foreign key."
+  },
+  "POL-2.2": {
+    "title": "Audit log fields",
+    "text": "Audit logs must carry typed UTC timestamps and must not be editable by application roles."
+  },
+  "POL-3.1": {
+    "title": "Backups",
+    "text": "Backups must be encrypted and tracked with an enforced encryption flag."
+  },
+  "POL-3.2": {
+    "title": "Retention",
+    "text": "Every table holding personal data must define a retention period."
+  }
+}
