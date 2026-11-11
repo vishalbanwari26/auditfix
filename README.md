@@ -4,6 +4,39 @@ An agent that audits a database against a company policy, then proposes a SQL mi
 
 Everything here is invented: the database (`alice@example.test`, SSNs like `000-00-0001`), the policy (six clauses, `POL-1.1` to `POL-3.2`) and the company. Only schema text and these fake rows ever reach the LLM.
 
+## Demo
+
+![Terminal showing the sandbox passing a foreign key migration on clean data and refusing four others: an orphan row, lost rows, ATTACH and a runaway query](assets/demo-sandbox.gif)
+
+The sandbox gate, with no LLM and no network: `python -m examples.sandbox_demo`. It runs five migrations against invented demo databases. One passes. Four are refused, each with a readable reason, and the real database is never written to. This is the real code the pipeline uses to check what the engineer model writes.
+
+## Example job
+
+`POST /jobs` returns 202 with a `job_id`. `GET /jobs/{id}` returns the job. This is abridged output from a run in demo mode (`AUDITFIX_LLM=demo`), where the models are scripted stand-ins, so the single finding and the placeholder migration only show the shape of the response, not what the real models write:
+
+```json
+{
+  "status": "done",
+  "error": null,
+  "grounding": {"ok": true, "judge": {"usable": true, "verdicts": [{"clause_id": "POL-1.1", "verdict": "supported", "...": "..."}]}},
+  "migration": {
+    "outcome": "verified",
+    "attempts": 1,
+    "sql": "CREATE TABLE IF NOT EXISTS audit_demo_note (id INTEGER PRIMARY KEY);",
+    "unfixable": [],
+    "recheck": {"...": "..."},
+    "history": ["..."]
+  },
+  "trace": [
+    {"kind": "model", "...": "..."}, {"kind": "tool", "name": "read_db_schema", "...": "..."},
+    {"kind": "node", "name": "auditor", "...": "..."}, {"kind": "node", "name": "engineer", "...": "..."},
+    {"kind": "node", "name": "sandbox", "...": "..."}
+  ]
+}
+```
+
+With a live key, `migration.sql` holds the model's migration only if it passed the sandbox and the recheck, and `migration.unfixable` lists the findings it declined, each with a reason.
+
 ## What it does
 
 1. **Auditor.** An agent loop with two tools, `read_db_schema` (read-only) and `read_policy`, writes a report that cites policy clauses like `[POL-2.1]`.
@@ -129,6 +162,9 @@ app/judge.py       judge and JSON client
 app/engineer.py    migration drafting
 app/recheck.py     judge re-check of the new schema
 app/sandbox.py     copy, apply, verify, delete
+examples/          offline sandbox demo (python -m examples.sandbox_demo)
+evals/             judge eval on LLM-AggreFact
+assets/            demo GIF and the vhs tape that made it
 app/store.py       SQLite jobs and trace
 tests/             176 tests
 ```
