@@ -16,7 +16,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from app.judge import GroqJsonClient, JudgeClient, defang
+from app.judge import JUDGE_MODEL, GroqJsonClient, JudgeClient, defang
 
 MAX_DOC_CHARS = 3_000  # longer documents are skipped, not truncated; keeps a run inside Groq's daily token budget
 SYSTEM = (
@@ -156,9 +156,13 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--n", type=int, default=100)
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--out", default="evals/results/aggrefact.json")
-    p.add_argument("--store", default="evals/results/aggrefact_verdicts.json")
+    p.add_argument("--model", default=JUDGE_MODEL, help="Groq model id to act as the judge")
+    p.add_argument("--out", default=None)
+    p.add_argument("--store", default=None)
     args = p.parse_args()
+    slug = args.model.replace("/", "_")  # each model keeps its own verdicts and summary
+    args.out = args.out or f"evals/results/aggrefact_{slug}.json"
+    args.store = args.store or f"evals/results/aggrefact_{slug}_verdicts.json"
     load_dotenv()
     rows = sample_rows(load_rows(), args.n, args.seed)  # same seed and n: same sample every day
     store_path = Path(args.store)
@@ -171,10 +175,10 @@ def main() -> None:
             store[row_key(r)] = {"dataset": r["dataset"], "label": r["label"], "verdict": verdict}
             save_store(store_path, store)  # after every row: a crash or limit loses nothing
 
-    asyncio.run(run(GroqJsonClient(), todo, on_result=keep))
+    asyncio.run(run(GroqJsonClient(model=args.model), todo, on_result=keep))
     results = stored_results(rows, store)
     summary = {
-        "model": GroqJsonClient().model,
+        "model": args.model,
         "seed": args.seed,
         "requested": args.n,
         "max_doc_chars": MAX_DOC_CHARS,
