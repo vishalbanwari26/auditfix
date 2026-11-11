@@ -13,3 +13,4 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "httpx"]
+eval = ["datasets"]
