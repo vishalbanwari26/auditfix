@@ -37,6 +37,23 @@ The sandbox gate, with no LLM and no network: `python -m examples.sandbox_demo`.
 
 With a live key, `migration.sql` holds the model's migration only if it passed the sandbox and the recheck, and `migration.unfixable` lists the findings it declined, each with a reason.
 
+### Real live runs
+
+[`examples/live_runs.json`](examples/live_runs.json) has four real runs on the clean demo database (Groq: `gpt-oss-20b` writes, `gpt-oss-120b` judges), run once each on 2026-11-12:
+
+| Run | Status | Findings supported | Attempts | Declined as not fixable in SQL |
+| --- | --- | --- | --- | --- |
+| 1 | `needs_review` | 1 (POL-1.1) | 1 | POL-1.1 |
+| 2 | `done` | 6 | 3 | POL-1.1, 1.2, 2.2, 3.1 |
+| 3 | `done` | 6 | 1 | POL-1.1, 1.2, 2.2, 3.1, 3.2 |
+| 4 | `done` | 6 | 1 | POL-1.1, 1.2, 3.1 |
+
+The real database file was byte-identical after every run. Four runs is not a success rate, and the file holds the full result of run 2 only.
+
+- **Run 1** shows the auditor varying: it found only the plaintext password column, and the engineer correctly declined it, because SQLite cannot hash passwords. A human has to fix that in application code.
+- **Run 2** shows the retry loop. Attempt 1 failed the recheck (POL-2.2 still unresolved). Attempt 2 failed the sandbox (`CHECK constraint failed`, which would have rejected existing rows). Attempt 3 passed both and added a foreign key to `access_log`.
+- **Run 4 shows a weakness.** It "fixed" POL-2.2 by changing `at TEXT` to `at DATETIME`. In SQLite that is only a type name and changes nothing about the stored values, yet the judge counted it as resolved.
+
 ## What it does
 
 1. **Auditor.** An agent loop with two tools, `read_db_schema` (read-only) and `read_policy`, writes a report that cites policy clauses like `[POL-2.1]`.
@@ -128,10 +145,11 @@ Two demo databases, on purpose:
 
 ## Known limits
 
-- **One verified run.** On the clean demo DB, one live run reached `done` with a verified foreign key rebuild for POL-2.1. That is one run, not a success rate. On the default DB the foreign key was refused, as intended.
+- **Few runs.** Four live runs on the clean demo DB: three reached `done`, one ended `needs_review`. That is too few to give a rate, and it is one small database. On the default DB the foreign key was refused, as intended.
+- **The judge accepts cosmetic fixes.** See run 4 above: a type rename that changes nothing was marked resolved.
 - **The engineer over-declines.** It declined findings like POL-3.1 and POL-2.2 as not fixable in SQL, and nothing checks those declines.
 - **The sandbox counts rows, not contents.** A migration that drops a plaintext column passes the gate even though it destroys that data. A column-level check is not built.
-- **The judge is imperfect and varies.** It caught a stretched citation (POL-2.2 used for "no primary key") but accepted POL-3.2 in one run and rejected it in others. There is no accuracy number for it yet (see Evals below).
+- **The judge is imperfect and varies.** It caught a stretched citation (POL-2.2 used for "no primary key") but accepted POL-3.2 in one run and rejected it in others. On a public benchmark it accepted 6 of 42 unsupported claims (see Evals below).
 - **Prompt injection is reduced, not solved.** Text from the schema, report and findings is stripped of the tags the prompts use as delimiters. A determined payload in a column name could still try.
 - **Single process.** See the Celery and Postgres notes above.
 - **Groq free tier.** Rate limits (429) and intermittent `output_parse_failed` 400s happen. Both are retried with backoff.
@@ -140,16 +158,22 @@ Two demo databases, on purpose:
 
 - **Unit tests:** 189, no network. They check the code with scripted clients, not model quality.
 - **Judge accuracy, public benchmark:** `python -m evals.aggrefact --n 100 --model <groq model>` runs a judge on a seeded sample of [LLM-AggreFact](https://huggingface.co/datasets/lytang/LLM-AggreFact) (gated, loaded at run time, not stored here). Each row is a document, a claim, and a label for whether the document supports the claim.
-  - **Qwen `qwen3.8-27b`, one complete run:** 100 rows, no judge errors. Accuracy 81% (95% interval 72 to 87). It accepted 6 of the 42 unsupported claims (14%, interval 7 to 28) and rejected 13 of the 58 supported ones (22%, interval 14 to 35). So it leans strict, and the dangerous error, accepting an unsupported claim, happened about one time in seven.
-  - **`gpt-oss-120b`, the judge this pipeline uses:** no complete run yet. Groq's free tier allows 200k tokens a day for this model and the benchmark's documents are large, so a run covers only part of the sample before stopping. Qwen has its own budget, which is why it finished first.
+  - **Results, same 100 rows for both models, no judge errors:**
+
+    | Judge | Accuracy | Accepted an unsupported claim | Rejected a supported claim |
+    | --- | --- | --- | --- |
+    | `gpt-oss-120b` (this pipeline's judge) | 86% (78 to 91) | 6 of 42, 14% (7 to 28) | 8 of 58, 14% (7 to 25) |
+    | `qwen3.8-27b` | 81% (72 to 87) | 6 of 42, 14% (7 to 28) | 13 of 58, 22% (14 to 35) |
+
+    Intervals are 95%. They overlap heavily, so these runs do not show that one model is better. Both accepted about one unsupported claim in seven, which is the dangerous error. That is why a judge verdict is never the only gate here: citations are checked against an allowlist first, and a migration must also pass the sandbox.
   - **How far to trust the numbers:** 100 rows is small, and the intervals are wide. Only documents under 3,000 characters are sampled, so results are biased toward short documents. The sample is balanced across the benchmark's 11 sources, with about 11 rows each, so the per-source numbers are too small to read. It uses a generic grounding prompt, not the policy-specific one, so it measures the model as a fact-checker, not this pipeline's judge on this policy.
-- **Not built:** a hand-labelled set on this project's own policy, and repeated engineer runs to measure the verified rate.
+- **Not built:** a hand-labelled set on this project's own policy, and enough repeated engineer runs to give a real verified rate (there are four so far).
 
 ## Next
 
 - A judge check on the engineer's declines.
 - A column-content check in the sandbox.
-- A hand-labelled eval set on this policy, and a complete AggreFact run.
+- A hand-labelled eval set on this policy, which is what would measure the judge on this task.
 - Record `finish_reason` in the trace.
 
 ## Layout

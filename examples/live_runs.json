@@ -1,0 +1,310 @@
+{
+ "note": "Four real live runs (Groq: gpt-oss-20b engineer, gpt-oss-120b judge) on the clean demo database, 2026-11-12. This file holds a summary of all four and the full result of run 2, chosen because it needed three attempts and shows the retry loop. Four runs is not a success rate. The real database file was byte-identical after every run.",
+ "all_runs": [
+  {
+   "run": 1,
+   "status": "needs_review",
+   "outcome": "unfixable",
+   "attempts": 1,
+   "findings_supported": [
+    "POL-1.1"
+   ],
+   "declined_as_not_fixable_in_sql": [
+    "POL-1.1"
+   ],
+   "migration_proposed": false
+  },
+  {
+   "run": 2,
+   "status": "done",
+   "outcome": "verified",
+   "attempts": 3,
+   "findings_supported": [
+    "POL-1.1",
+    "POL-1.2",
+    "POL-2.1",
+    "POL-2.2",
+    "POL-3.1",
+    "POL-3.2"
+   ],
+   "declined_as_not_fixable_in_sql": [
+    "POL-1.1",
+    "POL-1.2",
+    "POL-2.2",
+    "POL-3.1"
+   ],
+   "migration_proposed": true
+  },
+  {
+   "run": 3,
+   "status": "done",
+   "outcome": "verified",
+   "attempts": 1,
+   "findings_supported": [
+    "POL-1.1",
+    "POL-1.2",
+    "POL-2.1",
+    "POL-2.2",
+    "POL-3.1",
+    "POL-3.2"
+   ],
+   "declined_as_not_fixable_in_sql": [
+    "POL-1.1",
+    "POL-1.2",
+    "POL-2.2",
+    "POL-3.1",
+    "POL-3.2"
+   ],
+   "migration_proposed": true
+  },
+  {
+   "run": 4,
+   "status": "done",
+   "outcome": "verified",
+   "attempts": 1,
+   "findings_supported": [
+    "POL-1.1",
+    "POL-1.2",
+    "POL-2.1",
+    "POL-2.2",
+    "POL-3.1",
+    "POL-3.2"
+   ],
+   "declined_as_not_fixable_in_sql": [
+    "POL-1.1",
+    "POL-1.2",
+    "POL-3.1"
+   ],
+   "migration_proposed": true
+  }
+ ],
+ "run_2_job": {
+  "id": "95e8ce64-3e5f-421c-b1e2-cd2542b52483",
+  "status": "done",
+  "result": "**Database Schema Audit \u2013 Compliance Risks**\n\n| Table | Issue | Relevant Company Policy |\n|-------|-------|-------------------------|\n| **users** | 1. The `password_plain` column stores passwords in plain text. | [POL-1.1] |\n| | 2. The `ssn` column stores a Social Security Number in plain text. | [POL-1.2] |\n| **access_log** | 1. `user_id` is a foreign key reference to `users.id`, but no foreign\u2011key constraint exists, violating referential\u2011integrity requirements. | [POL-2.1] |\n| | 2. `action`, `ip`, and `at` are nullable and lack proper data types or constraints; the log entry is not guaranteed to capture a timestamp, user, and action reliably. | [POL-2.2] |\n| **backups** | 1. The `path` column contains backup file paths in plain text, with no guarantee that the backups themselves are encrypted, potentially exposing sensitive data. | [POL-3.1] |\n| | 2. No retention or expiration information is recorded, making it difficult to enforce backup retention policies. | [POL-3.2] |\n\n### Summary of Risks\n* **Credential Storage** \u2013 Plain\u2011text passwords expose user credentials to compromise.  \n* **Sensitive Identifiers** \u2013 Plain\u2011text SSNs violate data\u2011minimisation and protection requirements.  \n* **Referential Integrity** \u2013 Missing foreign\u2011key constraints can allow orphaned log entries.  \n* **Audit Log Fields** \u2013 Incomplete, nullable audit fields reduce audit trail integrity.  \n* **Backups** \u2013 Lack of encryption guarantees and retention tracking create data\u2011loss and compliance risks.  \n\n**Recommendations**  \n1. Hash and salt all passwords before storing; remove `password_plain`.  \n2. Encrypt or otherwise secure the `ssn` column (e.g., use a deterministic encryption scheme).  \n3. Add a foreign\u2011key constraint on `access_log.user_id` referencing `users.id`.  \n4. Enforce NOT NULL on `user_id`, `action`, `ip`, and `at`; store `at` as a proper timestamp.  \n5. Ensure backup files are encrypted and store a flag or cryptographic metadata in `backups`.  \n6. Add a `retention_date` or `expiry_date` column to `backups` and enforce retention policies.",
+  "error": null,
+  "trace": [
+   {
+    "turn": 0,
+    "kind": "node",
+    "name": "auditor",
+    "args": null,
+    "ok": true,
+    "error": null,
+    "ms": 9826.5,
+    "prompt_tokens": null,
+    "completion_tokens": null
+   },
+   {
+    "turn": 1,
+    "kind": "node",
+    "name": "engineer",
+    "args": null,
+    "ok": true,
+    "error": null,
+    "ms": 3074.1,
+    "prompt_tokens": null,
+    "completion_tokens": null
+   },
+   {
+    "turn": 1,
+    "kind": "node",
+    "name": "sandbox",
+    "args": null,
+    "ok": false,
+    "error": "[POL-2.2] still unresolved: Columns remain NOT NULL but `at` is still TEXT, not a typed UTC timestamp.",
+    "ms": 1740.4,
+    "prompt_tokens": null,
+    "completion_tokens": null
+   },
+   {
+    "turn": 2,
+    "kind": "node",
+    "name": "engineer",
+    "args": null,
+    "ok": true,
+    "error": null,
+    "ms": 879.0,
+    "prompt_tokens": null,
+    "completion_tokens": null
+   },
+   {
+    "turn": 2,
+    "kind": "node",
+    "name": "sandbox",
+    "args": null,
+    "ok": false,
+    "error": "SQL error: CHECK constraint failed: at GLOB '*T*Z'",
+    "ms": 6.5,
+    "prompt_tokens": null,
+    "completion_tokens": null
+   },
+   {
+    "turn": 3,
+    "kind": "node",
+    "name": "engineer",
+    "args": null,
+    "ok": true,
+    "error": null,
+    "ms": 1264.9,
+    "prompt_tokens": null,
+    "completion_tokens": null
+   },
+   {
+    "turn": 3,
+    "kind": "node",
+    "name": "sandbox",
+    "args": null,
+    "ok": true,
+    "error": null,
+    "ms": 2044.2,
+    "prompt_tokens": null,
+    "completion_tokens": null
+   }
+  ],
+  "grounding": {
+   "ok": true,
+   "cited": [
+    "POL-1.1",
+    "POL-1.2",
+    "POL-2.1",
+    "POL-2.2",
+    "POL-3.1",
+    "POL-3.2"
+   ],
+   "invented": [],
+   "external": [],
+   "judge": {
+    "ok": true,
+    "reviewed": true,
+    "usable": true,
+    "verdicts": [
+     {
+      "finding": "The `password_plain` column stores passwords in plain text.",
+      "clause_id": "POL-1.1",
+      "verdict": "supported",
+      "reason": "Schema has a plaintext password column and the clause prohibits plaintext credentials."
+     },
+     {
+      "finding": "The `ssn` column stores a Social Security Number in plain text.",
+      "clause_id": "POL-1.2",
+      "verdict": "supported",
+      "reason": "Schema contains an unencrypted SSN column and the clause requires encryption of such identifiers."
+     },
+     {
+      "finding": "`user_id` lacks a foreign\u2011key constraint referencing `users.id`.",
+      "clause_id": "POL-2.1",
+      "verdict": "supported",
+      "reason": "Schema shows no foreign key and the clause mandates enforced referential integrity."
+     },
+     {
+      "finding": "`action`, `ip`, and `at` are nullable and `at` is not a typed UTC timestamp.",
+      "clause_id": "POL-2.2",
+      "verdict": "supported",
+      "reason": "Schema does not enforce non\u2011null or proper timestamp type, violating the audit\u2011log field requirements."
+     },
+     {
+      "finding": "`path` column contains backup file paths in plain text with no guarantee backups are encrypted.",
+      "clause_id": "POL-3.1",
+      "verdict": "supported",
+      "reason": "Schema lacks enforced encryption of backups despite a flag column, breaching the encryption requirement."
+     },
+     {
+      "finding": "No retention or expiration information is recorded for backups.",
+      "clause_id": "POL-3.2",
+      "verdict": "supported",
+      "reason": "Schema has no retention field, contrary to the clause demanding a retention period."
+     }
+    ],
+    "rejected": [],
+    "error": null
+   }
+  },
+  "migration": {
+   "outcome": "verified",
+   "attempts": 3,
+   "sql": "BEGIN TRANSACTION;\n-- Recreate access_log with foreign key constraint, preserving existing data and nullability\nCREATE TABLE access_log_new (\n  user_id INTEGER,\n  action TEXT,\n  ip TEXT,\n  at TEXT,\n  FOREIGN KEY(user_id) REFERENCES users(id)\n);\nINSERT INTO access_log_new (user_id, action, ip, at)\nSELECT user_id, action, ip, at FROM access_log;\nDROP TABLE access_log;\nALTER TABLE access_log_new RENAME TO access_log;\n-- Add retention_date column to backups table\nALTER TABLE backups ADD COLUMN retention_date TEXT;\nCOMMIT;",
+   "schema_after": "access_log(user_id INTEGER, action TEXT, ip TEXT, at TEXT)\n  FOREIGN KEY user_id -> users.id\nbackups(id INTEGER PRIMARY KEY, path TEXT, encrypted INTEGER, retention_date TEXT)\n  (no foreign keys)\nusers(id INTEGER PRIMARY KEY, email TEXT NOT NULL, ssn TEXT, password_plain TEXT)\n  (no foreign keys)",
+   "recheck": {
+    "ok": true,
+    "resolutions": [
+     {
+      "clause_id": "POL-2.1",
+      "finding": "`user_id` lacks a foreign\u2011key constraint referencing `users.id`.",
+      "resolved": true,
+      "reason": "Migration recreates access_log with an enforced foreign key to users.id"
+     },
+     {
+      "clause_id": "POL-3.2",
+      "finding": "No retention or expiration information is recorded for backups.",
+      "resolved": true,
+      "reason": "Migration adds a retention_date column to backups, defining a retention period"
+     }
+    ],
+    "unresolved": [],
+    "error": null
+   },
+   "unfixable": [
+    {
+     "id": "F1",
+     "clause_id": "POL-1.1",
+     "finding": "The `password_plain` column stores passwords in plain text.",
+     "reason": "Storing passwords in plain text cannot be fixed with SQL alone."
+    },
+    {
+     "id": "F2",
+     "clause_id": "POL-1.2",
+     "finding": "The `ssn` column stores a Social Security Number in plain text.",
+     "reason": "Storing SSN in plain text cannot be fixed with SQL alone."
+    },
+    {
+     "id": "F4",
+     "clause_id": "POL-2.2",
+     "finding": "`action`, `ip`, and `at` are nullable and `at` is not a typed UTC timestamp.",
+     "reason": "Existing NULL values in action, ip, or at would violate NOT NULL constraints; cannot modify without data cleanup."
+    },
+    {
+     "id": "F5",
+     "clause_id": "POL-3.1",
+     "finding": "`path` column contains backup file paths in plain text with no guarantee backups are encrypted.",
+     "reason": "Ensuring backup file encryption cannot be enforced with SQL alone."
+    }
+   ],
+   "history": [
+    {
+     "attempt": 1,
+     "sql": "BEGIN TRANSACTION;\nCREATE TABLE access_log_new (\n  user_id INTEGER NOT NULL,\n  action TEXT NOT NULL,\n  ip TEXT NOT NULL,\n  at TEXT NOT NULL,\n  FOREIGN KEY(user_id) REFERENCES users(id)\n);\nINSERT INTO access_log_new (user_id, action, ip, at)\nSELECT user_id, action, ip, at FROM access_log;\nDROP TABLE access_log;\nALTER TABLE access_log_new RENAME TO access_log;\nCOMMIT;",
+     "error": "[POL-2.2] still unresolved: Columns remain NOT NULL but `at` is still TEXT, not a typed UTC timestamp.",
+     "unfixable": [
+      "F1",
+      "F2",
+      "F5",
+      "F6"
+     ]
+    },
+    {
+     "attempt": 2,
+     "sql": "BEGIN TRANSACTION;\n-- Recreate access_log with foreign key and timestamp format check\nCREATE TABLE access_log_new (\n  user_id INTEGER NOT NULL,\n  action TEXT NOT NULL,\n  ip TEXT NOT NULL,\n  at TEXT NOT NULL,\n  FOREIGN KEY(user_id) REFERENCES users(id),\n  CHECK(at GLOB '*T*Z')\n);\nINSERT INTO access_log_new (user_id, action, ip, at)\nSELECT user_id, action, ip, at FROM access_log;\nDROP TABLE access_log;\nALTER TABLE access_log_new RENAME TO access_log;\n-- Recreate backups with encryption flag and retention placeholder\nCREATE TABLE backups_new (\n  id INTEGER PRIMARY KEY,\n  path TEXT NOT NULL,\n  encrypted INTEGER NOT NULL CHECK(encrypted IN (0,1))\n);\nINSERT INTO backups_new (id, path, encrypted) SELECT id, path, encrypted FROM backups;\nDROP TABLE backups;\nALTER TABLE backups_new RENAME TO backups;\nCOMMIT;",
+     "error": "SQL error: CHECK constraint failed: at GLOB '*T*Z'",
+     "unfixable": [
+      "F1",
+      "F2",
+      "F5",
+      "F6"
+     ]
+    },
+    {
+     "attempt": 3,
+     "sql": "BEGIN TRANSACTION;\n-- Recreate access_log with foreign key constraint, preserving existing data and nullability\nCREATE TABLE access_log_new (\n  user_id INTEGER,\n  action TEXT,\n  ip TEXT,\n  at TEXT,\n  FOREIGN KEY(user_id) REFERENCES users(id)\n);\nINSERT INTO access_log_new (user_id, action, ip, at)\nSELECT user_id, action, ip, at FROM access_log;\nDROP TABLE access_log;\nALTER TABLE access_log_new RENAME TO access_log;\n-- Add retention_date column to backups table\nALTER TABLE backups ADD COLUMN retention_date TEXT;\nCOMMIT;",
+     "error": null,
+     "unfixable": [
+      "F1",
+      "F2",
+      "F4",
+      "F5"
+     ]
+    }
+   ]
+  }
+ }
+}
